@@ -17,6 +17,8 @@ import { loadApiCfg, saveApiCfg, hasApi } from "./engine/aiClient.js";
 import { genDayReport, templateReport } from "./engine/dayReport.js";
 import DevelopScreen from "./ui/DevelopScreen.jsx";
 import ExtractionScreen from "./ui/ExtractionScreen.jsx";
+import TerminalScreen from "./ui/TerminalScreen.jsx";
+import { newStove, runCommand } from "./engine/terminalEngine.js";
 import { initExtraction, extractionAction, applyBattleResult } from "./engine/extractionEngine.js";
 import { SKILLS, WEAPONS, ARMORS, teachPrice, trainPotency, cultivate } from "./engine/kungfuData.js";
 import { runDungeon, DUNGEONS, developDish, freestyleDish, NIGHT_AP, shopBuy } from "./engine/nightEngine.js";
@@ -155,6 +157,10 @@ export default function App() {
   const [extraction, setExtraction] = useState(null); // 搜打撤状态
   const [apiOpen, setApiOpen] = useState(false);
   const [report, setReport] = useState(null); // 每日 AI 报告
+  const [view, setView] = useState("ui"); // ui | terminal（主叙事）
+  const [termMsgs, setTermMsgs] = useState([]);
+  const [termBusy, setTermBusy] = useState(false);
+  const stoveRef = useRef(newStove());
 
   // 副本 → 搜打撤（大本营 → 多层热区）
   const actDungeon = (d) => {
@@ -338,6 +344,37 @@ export default function App() {
     setNightLog(l => [...l, `采购：花 40 文，买到 ${r.items.join("、")}`]);
   };
 
+  // 主叙事终端：研发命令
+  const runTerm = async (line) => {
+    setTermMsgs(ms => [...ms, { text: line, who: "你", scene: "灶房", mood: "认真" }]);
+    setTermBusy(true);
+    const r = await runCommand(stoveRef.current, line, {
+      inventory: game.inventory,
+      cuisine: 2,
+      onCooked: ({ dish, inventory }) => {
+        setGame(g => {
+          let recipes = g.recipes, customs = g.customRecipes;
+          if (dish.from === "配方") {
+            if (!recipes.includes(dish.name)) recipes = [...recipes, dish.name];
+          } else {
+            customs = [...customs, { name: dish.name, technique: dish.technique, materials: dish.materials || [], taste: dish.taste, tier: dish.tier, desc: dish.desc, from: dish.from }];
+          }
+          return { ...g, inventory, recipes, customRecipes: customs };
+        });
+        if (game.phase === PHASE.NIGHT) {
+          setNight(n => ({ ...n, ap: n.ap - 1 })); // 开火扣 1 行动点
+        }
+      },
+    });
+    setTermMsgs(ms => [...ms, r.msg]);
+    if (r.dish?.from === "配方" && !game.recipes.includes(r.dish.name)) {
+      setTermMsgs(ms => [...ms, { text: `「${r.dish.name}」记进了你的菜谱。`, who: "说书人", scene: "灶房", mood: "满意" }]);
+    } else if (r.dish) {
+      setTermMsgs(ms => [...ms, { text: `「${r.dish.name}」记进了你的菜谱。`, who: "说书人", scene: "灶房", mood: "惊喜" }]);
+    }
+    setTermBusy(false);
+  };
+
   // 退出战斗（回夜晚屏，不结束夜晚）
   const exitBattle = () => setBattle(null);
 
@@ -379,6 +416,9 @@ export default function App() {
         <span>💰 {game.cash} 文</span>
         <span>声望 {game.reputation}</span>
         <span className="phase">{PHASE_LABEL[game.phase]}</span>
+        <button className="mini-btn" onClick={() => setView(v => (v === "ui" ? "terminal" : "ui"))}>
+          {view === "ui" ? "📜 主叙事" : "🗔 外部 UI"}
+        </button>
         <button className="mini-btn" onClick={() => setApiOpen(true)}>⚙ AI</button>
         <button className="mini-btn" onClick={restart}>↺ 重开</button>
       </header>
@@ -406,6 +446,10 @@ export default function App() {
           onOpenDev={() => setDevOpen(true)}
           onBattleOver={onBattleOver} onEnd={endNight}
         />
+      )}
+      {view === "terminal" && !battle && (
+        <TerminalScreen msgs={termMsgs} onCommand={runTerm} busy={termBusy}
+          hint={game.phase === PHASE.NIGHT ? "（夜晚研发，开火扣 1 行动点）" : "（白天灶房空着，也可练练手）"} />
       )}
       {game.phase === PHASE.NIGHT && !battle && extraction && (
         <ExtractionScreen state={extraction}

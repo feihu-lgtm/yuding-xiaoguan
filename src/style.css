@@ -229,3 +229,30 @@ h3 { color: #b09858; font-size: 14px; margin: 10px 0 6px; }
   flex: 1; background: #241f2a; color: #e8dcc0; border: 1px solid #3a2f1e;
   border-radius: 4px; padding: 6px 10px; font-size: 12.5px;
 }
+
+/* 主叙事 Terminal */
+.terminal { position: relative; height: calc(100vh - 90px); display: flex; flex-direction: column;
+  background: #0e0c14; border: 1px solid #3a2f1e; border-radius: 8px; overflow: hidden; }
+.terminal-bg {
+  position: absolute; inset: 0; pointer-events: none; opacity: .4;
+  background: radial-gradient(ellipse at 30% 60%, #4a2e18 0%, transparent 55%),
+              radial-gradient(ellipse at 75% 25%, #3a2a18 0%, transparent 45%),
+              linear-gradient(180deg, #141018, #0c0a12);
+}
+.terminal-stream {
+  position: relative; z-index: 1; flex: 1; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.term-msg { display: flex; gap: 8px; align-items: baseline; font-size: 14px; line-height: 1.7; }
+.term-msg.narrator { color: #b8b090; }
+.term-avatar { font-size: 15px; flex-shrink: 0; }
+.term-who { font-weight: bold; flex-shrink: 0; min-width: 3.5em; }
+.term-scene { font-size: 11px; flex-shrink: 0; }
+.term-text { flex: 1; }
+.terminal-input-row { position: relative; z-index: 1; display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #2a2418; }
+.terminal-input-row input {
+  flex: 1; background: #17141c; color: #f0e4c8; border: 1px solid #3a2f1e;
+  border-radius: 5px; padding: 9px 12px; font-size: 14px;
+}
+.terminal-input-row input:focus { outline: none; border-color: #8a5a2a; }
+.term-hint { position: relative; z-index: 1; padding: 0 14px 10px; font-size: 11px; }
