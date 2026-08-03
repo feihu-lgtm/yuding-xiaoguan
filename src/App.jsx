@@ -9,7 +9,7 @@ import {
 } from "./engine/data.js";
 import { genDayGuests, REGULARS } from "./engine/guestEngine.js";
 import { makePrep, prepCost } from "./engine/prepEngine.js";
-import { initDay, tick, buildRecipeMap, serveDish } from "./engine/dayEngine.js";
+import { initDay, tick, buildRecipeMap, serveDish, daySeconds } from "./engine/dayEngine.js";
 import { knownSummary } from "./engine/tasteProbe.js";
 import { buildFighter, battleTurn, enemyChooseMove, battleLoot } from "./engine/battleEngine.js";
 import { genEnemyAI } from "./engine/aiEnemy.js";
@@ -613,7 +613,7 @@ function DayScreen({ day, speed, setSpeed, onServe }) {
 
       <main className="floor">
         <div className="slotbar">
-          {slotNames[day.slotIdx]} · tick {day.tick}/8
+          {slotNames[day.slotIdx]} · {daySeconds(day)}s/90s
           <label className="speed">速度
             <input type="range" min={500} max={2500} step={100} value={speed}
               onChange={e => setSpeed(+e.target.value)} />

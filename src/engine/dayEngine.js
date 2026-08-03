@@ -10,6 +10,12 @@ import { probeUpdate, probeHint, confirmedTastes } from "./tasteProbe.js";
 
 export const STOVE_COUNT = 1; // 灶台并行出餐数（开局）
 export const TICK_SECONDS = 3; // 每 tick = 3 秒：白天 30 tick = 90 秒，与配餐时限 1:30 同节奏
+export const TICKS_PER_SLOT = 10; // 每时段 tick 数（共 3 时段 = 90 秒）
+
+// 白天已过总秒数（UI 显示 x s/90 s）
+export function daySeconds(state) {
+  return Math.round((state.slotIdx * TICKS_PER_SLOT + state.tick) * TICK_SECONDS);
+}
 export const SERVE_LIMIT_SECONDS = 90; // 配餐时限 1:30：客人等太久没人派餐会走
 
 export function initDay(dayIdx, slots, prep, prices, { stove = STOVE_COUNT, recipesMap = null, cuisine = 2 } = {}) {
@@ -126,7 +132,7 @@ export function tick(state) {
 
   // 5) 时段推进（10 tick/时段；桌上客人跨时段继续，不清桌）
   s.tick += 1;
-  if (s.tick >= 10) {
+  if (s.tick >= TICKS_PER_SLOT) {
     const next = s.slotIdx + 1;
     if (next < 3) {
       s.slotIdx = next;
