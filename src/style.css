@@ -280,3 +280,25 @@ h3 { color: #b09858; font-size: 14px; margin: 10px 0 6px; }
 }
 .serve-panel { width: 380px; max-width: 90vw; background: #1e1a14; border: 1px solid #7a6a4f; border-radius: 10px; padding: 18px; }
 .probe-hint { display: block; color: #e0913a; font-size: 11px; margin-top: 2px; }
+
+/* 备菜屏：左右 3:7，库存下置 */
+.prep-screen { display: flex; flex-direction: column; gap: 8px; }
+.prep-layout { display: grid; grid-template-columns: 3fr 7fr; gap: 10px; flex: 1; min-height: 0; }
+.prep-left { overflow-y: auto; border: 1px solid #3a2f1e; border-radius: 6px; padding: 8px; background: #1d1924; }
+.prep-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  border: 1px solid #2c2535; border-radius: 5px; padding: 6px 8px; margin: 4px 0;
+  cursor: pointer; background: #241f2a;
+}
+.prep-row:hover { border-color: #8a5a2a; }
+.prep-row.sel { border-color: #c8a860; background: #2c2535; }
+.prep-row.armed { border-left: 3px solid #8fd08a; }
+.prep-row-name { font-size: 13px; font-weight: bold; color: #f0e4c8; flex-shrink: 0; }
+.prep-row-ctrl { display: flex; gap: 4px; align-items: center; font-size: 11px; color: #8a7a5a; }
+.prep-row-ctrl input { width: 42px; background: #14121a; color: #e8dcc0; border: 1px solid #3a2f1e; border-radius: 3px; padding: 2px 4px; font-size: 12px; }
+.del-btn { background: none; border: 1px solid #4a3a20; color: #d07060; border-radius: 3px; cursor: pointer; font-size: 11px; padding: 1px 6px; }
+.del-btn:hover { border-color: #d07060; }
+.prep-right { overflow-y: auto; }
+.prep-detail { min-height: 100%; }
+.stock-bar { border: 1px solid #3a2f1e; border-radius: 6px; padding: 8px 12px; background: #1d1924; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.stock-bar h3 { margin: 0; }

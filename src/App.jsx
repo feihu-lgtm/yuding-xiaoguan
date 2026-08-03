@@ -489,38 +489,62 @@ const PHASE_LABEL = { PREP: "卯时·备菜", DAY: "营业中", NIGHT: "入夜",
 function PrepScreen({ game, sel, prices, setSel, setPrices, onStart, onInit }) {
   const menu = [...game.recipes.map(n => RECIPES.find(r => r.name === n)), ...game.customRecipes].filter(Boolean);
   const [touched, setTouched] = useState(false);
+  const [selected, setSelected] = useState(null);
   useEffect(() => { if (!touched) { onInit(); setTouched(true); } }, []);
+  useEffect(() => { if (!selected && menu.length) setSelected(menu[0].name); }, [menu.length, selected]);
   const stock = Object.entries(game.inventory).filter(([, c]) => c > 0);
+  const cur = menu.find(r => r.name === selected) || menu[0];
+  const range = cur ? recipePriceRange(cur) : null;
+  const armed = Object.values(sel).filter(c => c > 0).length;
   return (
-    <div className="screen">
-      <h2>🌅 卯时 · 备菜</h2>
-      <p className="hint">从菜谱里选 4 道上架并押份数。押少缺货，押多腐坏——押错就是今天白干。</p>
-      <div className="prep-grid">
-        {menu.map(r => {
-          const name = r.name;
-          const range = recipePriceRange(r);
-          return (
-            <div className="card" key={name}>
-              <div className="dish-name">{name} <span className="tier">[{r.tier}]</span>{r.from === "AI" && <span className="dim"> ✦</span>}</div>
-              <div className="dish-meta">味型 {r.taste} · 技法 {r.technique} · 成本 {recipeCost(r)}文</div>
-              <div className="dish-meta">备料：{r.materials.map(m => `${m}×${1}`).join("、")}</div>
-              <div className="dish-desc">{r.desc}</div>
-              <div className="row">
-                <label>份数</label>
-                <input type="number" min={0} max={8} value={sel[name] ?? 0}
-                  onChange={e => setSel({ ...sel, [name]: Math.max(0, Math.min(8, +e.target.value)) })} />
+    <div className="screen prep-screen">
+      <h2>🌅 卯时 · 备菜 <span className="dim" style={{ fontSize: 12 }}>选菜押份数——押少缺货，押多腐坏。已选 {armed}/4 道。</span></h2>
+      <div className="prep-layout">
+        {/* 左 3：选择 + 备量 */}
+        <div className="prep-left">
+          <h3>🧾 菜单（点击查看详情 · 份数/定价/✕删除）</h3>
+          {menu.map(r => {
+            const n = r.name;
+            const rg = recipePriceRange(r);
+            const on = (sel[n] ?? 0) > 0;
+            return (
+              <div key={n} className={`prep-row ${selected === n ? "sel" : ""} ${on ? "armed" : ""}`} onClick={() => setSelected(n)}>
+                <div className="prep-row-name">
+                  {n} <span className="tier">[{r.tier}]</span>{r.from === "AI" ? " ✦" : ""}
+                </div>
+                <div className="prep-row-ctrl" onClick={e => e.stopPropagation()}>
+                  <label>份</label>
+                  <input type="number" min={0} max={8} value={sel[n] ?? 0}
+                    onChange={e => setSel({ ...sel, [n]: Math.max(0, Math.min(8, +e.target.value)) })} />
+                  <label>价</label>
+                  <input type="number" min={rg.min} max={rg.max} value={prices[n] ?? rg.min}
+                    onChange={e => setPrices({ ...prices, [n]: +e.target.value })} />
+                  <button className="del-btn" title="删除这道菜" onClick={() => setSel({ ...sel, [n]: 0 })}>✕</button>
+                </div>
               </div>
-              <div className="row">
-                <label>定价</label>
-                <input type="number" min={range.min} max={range.max} value={prices[name] ?? range.min}
-                  onChange={e => setPrices({ ...prices, [name]: +e.target.value })} />
-                <span className="dim">({range.min}-{range.max})</span>
-              </div>
+            );
+          })}
+        </div>
+        {/* 右 7：详情 */}
+        <div className="prep-right">
+          {cur && range && (
+            <div className="card prep-detail">
+              <div className="dish-name">{cur.name} <span className="tier">[{cur.tier}]</span>{cur.from === "AI" ? " ✦ AI研发菜" : ""}</div>
+              <div className="dish-meta">味型 {cur.taste} · 技法 {cur.technique} · 档次 {cur.tier}</div>
+              <div className="dish-meta">备料：{cur.materials.map(m => `${m}（${INGREDIENTS[m]?.tier || "白"}品·${recipeCost({ materials: [m] })}文）`).join("、")}</div>
+              <div className="dish-meta">成本 {recipeCost(cur)}文 · 建议定价 {range.min}-{range.max}文</div>
+              <div className="dish-desc">{cur.desc}</div>
+              {sel[cur.name] > 0 && (
+                <div className="row">
+                  <span className="ok">已押 {sel[cur.name]} 份 · 备料成本 {recipeCost(cur) * sel[cur.name]} 文</span>
+                </div>
+              )}
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
-      <div className="stock">
+      {/* 库存放下面 */}
+      <div className="stock-bar">
         <h3>🧺 食材库存</h3>
         <div className="tags">
           {stock.map(([n, c]) => (
