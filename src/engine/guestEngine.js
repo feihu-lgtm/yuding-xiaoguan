@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { mulberry32, TASTE_CATEGORIES, INGREDIENTS } from "./data.js";
+import { initKnown } from "./tasteProbe.js";
 
 // ── 熟客档案（NPC口味表节选，编码版）────────────────────────────────────
 // taste: 大类（满意度匹配）；likes: 兴趣食材（命中 +25 那档）；tier: 客层。
@@ -52,8 +53,8 @@ function makeRegularCard(reg, seed) {
   const rng = mulberry32(seed);
   return {
     id: reg.id, name: reg.name, role: reg.role, regular: true,
-    taste: reg.taste, likes: [...reg.likes], tech: reg.tech, pay: reg.pay,
-    patience: 5 + Math.floor(rng() * 3), // tick
+    taste: reg.taste, likes: [...reg.likes], tech: reg.tech, pay: reg.pay, known: initKnown(),
+    patience: 90, // 配餐时限 1:30（秒）
     line: reg.line,
   };
 }
@@ -63,8 +64,8 @@ function makePasserbyCard(tpl, seed) {
   const likes = [...tpl.likes].sort(() => rng() - 0.5).slice(0, 2);
   return {
     id: `${tpl.id}_${seed}`, name: tpl.name, role: "路人", regular: false,
-    taste: tpl.taste, likes, tech: tpl.tech, pay: Math.round(tpl.pay[0] + rng() * (tpl.pay[1] - tpl.pay[0])),
-    patience: 5 + Math.floor(rng() * 3),
+    taste: tpl.taste, likes, tech: tpl.tech, pay: Math.round(tpl.pay[0] + rng() * (tpl.pay[1] - tpl.pay[0])), known: initKnown(),
+    patience: 90, // 配餐时限 1:30（秒）
     line: "",
   };
 }

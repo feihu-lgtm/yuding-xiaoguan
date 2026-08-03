@@ -44,10 +44,15 @@ export async function genFreestyleDish(materials, technique, cookware, cuisine, 
 
   const system = `你是曲措乡武侠世界的说书人。玩家在灶房自由搭配食材做出一道无名菜。
 只输出菜名与风味小描述（2-3 句，白话古文，章回口吻，禁冒号破折号）。
-味型/档次/品质由系统裁决，你的输出里不要出现任何数值与品阶词。`;
-  const user = `材料：${materials.join("、")}
+味型/档次/品质由系统裁决，你的输出里不要出现任何数值与品阶词。
+每样材料都有它的风物来历（见下），起名与描写要贴合它们的来头——想象有据，不凭空。`;
+  const lore = materials.map(m => {
+    const ing = INGREDIENTS[m];
+    return ing ? `${m}（${ing.desc}）` : m;
+  }).join("；");
+  const user = `材料与风物：${lore}
 技法：${technique}（${TECH_REQ[technique] || "家常做法"}）
-炊具：${cookware?.name || "溪边旧铁锅"}
+炊具：${cookware?.name || "溪边旧铁锅"}（${cookware?.requirement || ""}）
 
 请输出 JSON：{"name":"菜名(3-7字，见料性见手法，如：山菌醋椒煨江团)","desc":"色香味的说书人小总结(2-3句，收在具体动作或滋味上)"}`;
 

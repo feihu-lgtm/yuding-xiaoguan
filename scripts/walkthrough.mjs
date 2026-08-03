@@ -1,6 +1,6 @@
 // 验收走查：模拟玩家 7 天（智能备菜 + 夜晚副本/采购）
 import { genDayGuests } from "../src/engine/guestEngine.js";
-import { initDay, tick } from "../src/engine/dayEngine.js";
+import { initDay, tick, serveDish } from "../src/engine/dayEngine.js";
 import { settleDay, checkBankrupt } from "../src/engine/economy.js";
 import { makePrep } from "../src/engine/prepEngine.js";
 import { runDungeon, DUNGEONS, shopBuy, developDish } from "../src/engine/nightEngine.js";
@@ -39,7 +39,16 @@ for (let d = 0; d < DAYS; d++) {
   const prices = Object.fromEntries(Object.keys(prepIn).map(n => [n, Math.round(recipeCost(RECIPES.find(r => r.name === n)) * 2.0)]));
   let s = initDay(d, slots, { ...res.prep }, prices);
   let guard = 0;
-  while (!s.done && guard++ < 200) s = tick(s);
+  while (!s.done && guard++ < 300) {
+    for (let t = 0; t < s.tables.length; t++) {
+      const tb = s.tables[t];
+      if (tb?.state === "waiting") {
+        const available = Object.keys(s.prep).filter(n => s.prep[n] > 0);
+        if (available.length) s = serveDish(s, t, available[guard % available.length], prices[available[guard % available.length]] || 14);
+      }
+    }
+    s = tick(s);
+  }
 
   const revenue = s.cash;
   const foodCost = Object.entries(prepIn).reduce((sum, [n, c]) => sum + recipeCost(RECIPES.find(r => r.name === n)) * c, 0);

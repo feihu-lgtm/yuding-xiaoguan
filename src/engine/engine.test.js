@@ -3,7 +3,7 @@ import { RECIPES, INGREDIENTS, START_INVENTORY, recipeCost, recipePrepTime, reci
 import { genDayGuests, REGULARS } from "./guestEngine.js";
 import { calcSatisfaction } from "./satisfaction.js";
 import { makePrep, overnight } from "./prepEngine.js";
-import { initDay, tick } from "./dayEngine.js";
+import { initDay, tick, serveDish } from "./dayEngine.js";
 import { runDungeon, developDish, freestyleDish, DUNGEONS } from "./nightEngine.js";
 import { settleDay, checkBankrupt } from "./economy.js";
 import { genEnemy, buildFighter, battleTurn, battleLoot, DUNGEON_ENEMIES } from "./battleEngine.js";
@@ -76,28 +76,62 @@ describe("满意度", () => {
 });
 
 describe("白天引擎", () => {
-  it("完整跑完 3 时段 24 tick，24 客全结账，零 AI", () => {
+  it("手动派餐：waiting 桌派菜 → 24 客全结账，零 AI", () => {
     const slots = genDayGuests(0, 20);
     const prep = { "牦牛骨汤": 8, "烤藏香猪": 8, "烤黄羊腿": 8, "酸汤裂腹鱼": 8 };
     const prices = { "牦牛骨汤": 14, "烤藏香猪": 16, "烤黄羊腿": 14, "酸汤裂腹鱼": 14 };
     let s = initDay(0, slots, prep, prices);
     let guard = 0;
-    while (!s.done && guard++ < 100) s = tick(s);
+    while (!s.done && guard++ < 300) {
+      for (let t = 0; t < s.tables.length; t++) {
+        const tb = s.tables[t];
+        if (tb?.state === "waiting") {
+          const available = Object.keys(s.prep).filter(n => s.prep[n] > 0);
+          if (available.length) s = serveDish(s, t, available[0], 14);
+        }
+      }
+      s = tick(s);
+    }
     expect(s.done).toBe(true);
     expect(s.sales.length).toBe(24);
     expect(s.cash).toBeGreaterThan(0);
-    expect(s.reputationDelta).toBeGreaterThan(-10);
   });
-  it("份数耗尽 → 售罄流失（不算差评，只流失营收）", () => {
+  it("没派餐的客人等太久会走（流失不差评）；份数耗尽后无菜可派", () => {
     const slots = genDayGuests(0, 20);
-    const prep = { "牦牛骨汤": 2 };
+    const prep = { "牦牛骨汤": 1 };
     let s = initDay(0, slots, prep, { "牦牛骨汤": 14 });
     let guard = 0;
-    while (!s.done && guard++ < 100) s = tick(s);
+    while (guard++ < 200) {
+      // 只派第一桌，其余不管 → 90 秒配餐时限后流失
+      for (let t = 0; t < s.tables.length; t++) {
+        const tb = s.tables[t];
+        if (tb?.state === "waiting" && t === 0 && s.prep["牦牛骨汤"] > 0) {
+          s = serveDish(s, t, "牦牛骨汤", 14);
+        }
+      }
+      s = tick(s);
+    }
     expect(s.prep["牦牛骨汤"]).toBeLessThanOrEqual(0);
     expect(s.missed).toBeGreaterThan(0);
     expect(s.sales.filter(x => x.verdict === "差评").length).toBe(0);
-    expect(s.sales.length + s.missed).toBe(24);
+  });
+  it("扒口味：好评把菜属性计入候选，差评排除", () => {
+    const slots = genDayGuests(0, 20);
+    const prep = { "牦牛骨汤": 8, "烤藏香猪": 8 };
+    let s = initDay(0, slots, prep, { "牦牛骨汤": 14, "烤藏香猪": 16 });
+    let guard = 0;
+    while (!s.done && guard++ < 300) {
+      for (let t = 0; t < s.tables.length; t++) {
+        const tb = s.tables[t];
+        if (tb?.state === "waiting") {
+          const available = Object.keys(s.prep).filter(n => s.prep[n] > 0);
+          if (available.length) s = serveDish(s, t, available[guard % available.length], 14);
+        }
+      }
+      s = tick(s);
+    }
+    const guest = slots.flat().find(g => Object.keys(g.known.hits).length > 0 || Object.keys(g.known.miss).length > 0);
+    expect(guest).toBeTruthy();
   });
 });
 

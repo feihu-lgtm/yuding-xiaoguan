@@ -9,7 +9,8 @@ import {
 } from "./engine/data.js";
 import { genDayGuests, REGULARS } from "./engine/guestEngine.js";
 import { makePrep, prepCost } from "./engine/prepEngine.js";
-import { initDay, tick, buildRecipeMap } from "./engine/dayEngine.js";
+import { initDay, tick, buildRecipeMap, serveDish } from "./engine/dayEngine.js";
+import { knownSummary } from "./engine/tasteProbe.js";
 import { buildFighter, battleTurn, enemyChooseMove, battleLoot } from "./engine/battleEngine.js";
 import { genEnemyAI } from "./engine/aiEnemy.js";
 import { genFreestyleDish } from "./engine/aiDish.js";
@@ -103,6 +104,16 @@ export default function App() {
     setGame(g => ({ ...g, phase: PHASE.DAY }));
   };
 
+  // 手动派餐
+  const serve = (tableIdx, dishName) => {
+    console.log("[serve]", tableIdx, dishName, "price:", prepPrices[dishName]);
+    setDayState(s => {
+      const next = s ? serveDish(s, tableIdx, dishName, prepPrices[dishName]) : s;
+      console.log("[serve] table state:", next?.tables[tableIdx]?.state, "| lastLog:", next?.log?.slice(-1)[0]);
+      return next;
+    });
+  };
+
   // 白天 tick 自动推进
   const running = game.phase === PHASE.DAY && dayState && !dayState.done;
   useEffect(() => {
@@ -130,6 +141,7 @@ export default function App() {
     setSummary({ ...settled, bankrupt, sales: dayState?.sales || [], hurt });
     setGame(g => ({
       ...g,
+      cash: settled.cash, // 打烊即结算，账目当场入袋
       player: { ...g.player, hp: 50 + g.player.waigong * 15 }, // 睡一觉满血
       phase: PHASE.SUMMARY,
     }));
@@ -435,6 +447,7 @@ export default function App() {
         <DayScreen
           day={dayState} speed={speed} setSpeed={setSpeed}
           setPrices={setPrepPrices} prices={prepPrices}
+          onServe={serve}
         />
       )}
       {game.phase === PHASE.NIGHT && (
@@ -490,6 +503,7 @@ function PrepScreen({ game, sel, prices, setSel, setPrices, onStart, onInit }) {
             <div className="card" key={name}>
               <div className="dish-name">{name} <span className="tier">[{r.tier}]</span>{r.from === "AI" && <span className="dim"> ✦</span>}</div>
               <div className="dish-meta">味型 {r.taste} · 技法 {r.technique} · 成本 {recipeCost(r)}文</div>
+              <div className="dish-meta">备料：{r.materials.map(m => `${m}×${1}`).join("、")}</div>
               <div className="dish-desc">{r.desc}</div>
               <div className="row">
                 <label>份数</label>
@@ -533,10 +547,17 @@ function parseLogToMsg(line) {
   return { who: "说书人", text, mood: "📖" };
 }
 
-function DayScreen({ day, speed, setSpeed }) {
+function DayScreen({ day, speed, setSpeed, onServe }) {
   const queueNames = day.queue.slice(0, 6).map(g => g.name).join("、");
   const [say, setSay] = useState("");
-  const msgs = day.log.slice(-14).map(parseLogToMsg);
+  const [serveTarget, setServeTarget] = useState(null); // 正在派餐的桌号
+  const servingDishes = Object.entries(day.prep).filter(([, c]) => c > 0).map(([n]) => n);
+  const msgs = day.log.slice(-14).map(parseLogToMsg).map(m => {
+    // 把最近的结账 hint 挂到对应消息上
+    const lastSale = day.sales[day.sales.length - 1];
+    if (lastSale?.hint && m.text.includes(lastSale.guest)) m.hint = lastSale.hint;
+    return m;
+  });
   const lastGuest = msgs.filter(m => m.who !== "说书人" && m.who !== "店小二").slice(-1)[0];
   const slotNames = ["午市", "晚市", "夜宵"];
   return (
@@ -568,25 +589,41 @@ function DayScreen({ day, speed, setSpeed }) {
           </label>
         </div>
         <div className="tables">
-          {day.tables.map((tb, i) => (
+          {day.tables.map((tb, i) => {
+            const known = tb?.guest?.known ? knownSummary(tb.guest.known) : null;
+            return (
             <div className={`table ${tb ? "occupied" : ""}`} key={i}>
               {tb ? (
                 <>
                   <div className="t-name">{tb.guest.name}</div>
-                  <div className="t-taste">口味:{tb.guest.taste} · 技法:{tb.guest.tech} · 预算:{tb.guest.pay}文</div>
-                  <div className="t-like">食材: {tb.guest.likes.join("、")}</div>
+                  <div className="t-taste">预算:{tb.guest.pay}文 · 耐心:{tb.guest.patience}</div>
+                  {known && (known.confirmed.length || known.candidate.length || known.excluded.length) ? (
+                    <div className="t-known">
+                      {known.confirmed.map((c, k) => <span key={k} className="known-yes">✓{c}</span>)}
+                      {known.candidate.slice(0, 2).map((c, k) => <span key={k} className="known-maybe">?{c}</span>)}
+                      {known.excluded.slice(0, 2).map((c, k) => <span key={k} className="known-no">✗{c}</span>)}
+                    </div>
+                  ) : tb.state === "waiting" ? (
+                    <div className="t-unknown">??? 口味成谜——试一道菜</div>
+                  ) : null}
                   <div className="t-dish">
-                    {tb.state === "等待" ? `等菜「${tb.dish}」(t{tb.waitTicks}/${tb.guest.patience})` : `用餐「${tb.dish}」`}
+                    {tb.state === "waiting" ? (
+                      <button className="serve-btn" onClick={() => setServeTarget(i)}>🖐 派餐</button>
+                    ) : tb.state === "烹饪" ? (
+                      `烹饪「${tb.dish}」(t${tb.waitTicks})`
+                    ) : (
+                      `用餐「${tb.dish}」`
+                    )}
                   </div>
-                  <div className={`t-state ${tb.state === "等待" && tb.waitTicks > tb.guest.patience ? "angry" : ""}`}>
-                    {tb.state === "等待" ? "🍚 等菜" : "🥢 用餐"}
-                  </div>
+                  {tb.state === "waiting" && <div className={`t-state ${tb.waitTicks * 1.1 > 90 ? "angry" : ""}`}>
+                    配餐倒计时 {Math.max(0, Math.ceil(90 - tb.waitTicks * 1.1))}s
+                  </div>}
                 </>
               ) : (
                 <div className="t-empty">空桌 {i + 1}</div>
               )}
             </div>
-          ))}
+          );})}
         </div>
       </main>
 
@@ -604,6 +641,23 @@ function DayScreen({ day, speed, setSpeed }) {
         <div className="dim">食客喜爱度：看吃客的脸色行事</div>
       </aside>
 
+      {/* 派餐弹层：手动给客人上菜 */}
+      {serveTarget !== null && (
+        <div className="serve-modal" onClick={() => setServeTarget(null)}>
+          <div className="serve-panel" onClick={e => e.stopPropagation()}>
+            <h3>🖐 给 {day.tables[serveTarget]?.guest?.name} 派菜</h3>
+            <div className="dim">TA 的口味你还不知道——试一道菜，看 TA 给好评还是差评，慢慢扒出喜好。</div>
+            {servingDishes.map(n => (
+              <button key={n} className="list-btn" onClick={() => { onServe(serveTarget, n); setServeTarget(null); }}>
+                {n}（剩 {day.prep[n]} 份）
+              </button>
+            ))}
+            {!servingDishes.length && <div className="dim">今日份数售罄了——明早多押点。</div>}
+            <button className="list-btn" onClick={() => setServeTarget(null)}>算了</button>
+          </div>
+        </div>
+      )}
+
       {/* SLG 消息流（姬侠传式：说话者|表情|正文）+ 立绘 + 底部输入 */}
       <div className="mud-stream">
         <div className="mud-scroll">
@@ -611,7 +665,10 @@ function DayScreen({ day, speed, setSpeed }) {
             <div key={i} className={`mud-msg ${m.who === "说书人" ? "narrator" : "guest"}`}>
               <span className="mud-avatar">{m.mood}</span>
               <span className="mud-who">{m.who}</span>
-              <span className="mud-text">{m.text.replace(/^([\u4e00-\u9fff·]{2,6})\s/, "")}</span>
+              <span className="mud-text">
+                {m.text.replace(/^([\u4e00-\u9fff·]{2,6})\s/, "")}
+                {m.hint && <span className="probe-hint">{m.hint}</span>}
+              </span>
             </div>
           ))}
         </div>

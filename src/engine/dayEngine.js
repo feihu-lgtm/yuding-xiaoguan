@@ -6,8 +6,11 @@
 import { RECIPES, recipePrepTime } from "./data.js";
 import { verdictEffects } from "./satisfaction.js";
 import { dishScore, matchScore, satisfactionFrom } from "./dishScore.js";
+import { probeUpdate, probeHint } from "./tasteProbe.js";
 
 export const STOVE_COUNT = 1; // 灶台并行出餐数（开局）
+export const TICK_SECONDS = 1.1; // 每 tick 对应游戏秒（UI 显示配餐倒计时用）
+export const SERVE_LIMIT_SECONDS = 90; // 配餐时限 1:30：客人等太久没人派餐会走
 
 export function initDay(dayIdx, slots, prep, prices, { stove = STOVE_COUNT, recipesMap = null, cuisine = 2 } = {}) {
   return {
@@ -75,19 +78,27 @@ export function tick(state) {
       const { table } = s.cooking[i];
       s.cooking.splice(i, 1);
       const tb = s.tables[table];
-      if (tb && tb.state === "等待") {
+      if (tb && tb.state === "烹饪") {
         s.tables[table] = { ...tb, state: "用餐", eatTicks: 1 };
         log(s, `${tb.guest.name} 的「${tb.dish}」上桌了`);
       }
     }
   }
 
-  // 2) 等待 tick 与用餐收尾
+  // 2) 待派餐/用餐推进
   for (let t = 0; t < s.tables.length; t++) {
     const tb = s.tables[t];
     if (!tb) continue;
-    if (tb.state === "等待") {
-      s.tables[t] = { ...tb, waitTicks: tb.waitTicks + 1 };
+    if (tb.state === "waiting") {
+      const wt = tb.waitTicks + 1;
+      if (wt * TICK_SECONDS > SERVE_LIMIT_SECONDS) {
+        // 配餐时限 1:30 内没人派餐，拂袖而去（不算差评，只流失）
+        s.missed = (s.missed || 0) + 1;
+        log(s, `${tb.guest.name} 等了一分半没人招呼，拂袖而去`);
+        s.tables[t] = null;
+        continue;
+      }
+      s.tables[t] = { ...tb, waitTicks: wt };
     } else if (tb.state === "用餐") {
       const remain = tb.eatTicks - 1;
       if (remain <= 0) {
@@ -98,45 +109,23 @@ export function tick(state) {
     }
   }
 
-  // 3) 空桌补客
+  // 3) 空桌补客：入座即"waiting"——等玩家手动派餐（不知偏好，先试菜扒口味）
   for (let t = 0; t < s.tables.length; t++) {
     if (s.tables[t] || !s.queue.length) continue;
-    if (s.cooking.some(c => c.table === t)) continue;
     const guest = s.queue.shift();
-    const dish = chooseDish(guest, s.prep, s.recipesMap);
-    if (!dish) {
-      // 菜单售罄：不接待，只流失营收，不算差评（客人明天还来）
-      s.missed = (s.missed || 0) + 1;
-      log(s, `${guest.name} 见菜牌售罄，悻悻离去`);
-      continue;
-    }
-    const r = recipeByName(s, dish);
-    s.tables[t] = {
-      guest, state: "等待", dish, waitTicks: 0,
-      prepTime: recipePrepTime(r), tasteCat: tasteCategoryOf(r), quality: qualityOf(r),
-    };
-    log(s, `${guest.name} 落座，点了「${dish}」`);
+    s.tables[t] = { guest, state: "waiting", waitTicks: 0 };
+    log(s, `${guest.name} 落座——等店主动手安排。`);
   }
 
-  // 4) 下厨：每桌独立出餐计时（并行度=桌数；升级走炊具减耗时，不砍并行）
-  for (let t = 0; t < s.tables.length; t++) {
-    const tb = s.tables[t];
-    if (!tb || tb.state !== "等待") continue;
-    if (s.cooking.some(c => c.table === t)) continue;
-    s.cooking.push({ table: t, dish: tb.dish, remain: tb.prepTime });
-  }
-
-  // 5) 时段推进
+  // 5) 时段推进（10 tick/时段；桌上客人跨时段继续，不清桌）
   s.tick += 1;
-  if (s.tick >= 8) {
+  if (s.tick >= 10) {
     const next = s.slotIdx + 1;
     if (next < 3) {
       s.slotIdx = next;
       s.tick = 0;
       s.queue = [...s.slots[next]];
-      s.tables = s.tables.map(() => null); // 时段间清桌
-      s.cooking = [];
-      log(s, `—— 进入时段${next + 1} ——`);
+      log(s, `—— 进入时段${next + 1}，座上客人继续 ——`);
     } else {
       s.done = true;
     }
@@ -149,6 +138,7 @@ function settle(s, tableIdx) {
   const { guest, dish, waitTicks } = tb;
   const r = recipeByName(s, dish);
   const price = s.prices[dish] || 0;
+  const dishInfo = { name: dish, tasteCat: tb.tasteCat, technique: r?.technique, materials: r?.materials || [] };
   // 食物本体分（稀有度+技法名菜+厨艺+创造+bonus）× 食客三维匹配（口味/技法/食材）
   const freestyle = !RECIPES.some(x => x.name === dish);
   const ds = dishScore(
@@ -156,19 +146,50 @@ function settle(s, tableIdx) {
     { cuisine: s.cuisine, bonusText: r?.from === "AI" ? r.desc : "" }
   );
   const ms = matchScore(guest, { tasteCat: tb.tasteCat, technique: r?.technique, materials: r?.materials || [], name: dish });
-  const score = satisfactionFrom(ds.total, ms.total, { waitTicks, patience: guest.patience, price, pay: guest.pay });
+  const score = satisfactionFrom(ds.total, ms.total, { waitTicks: Math.round(waitTicks * TICK_SECONDS), patience: guest.patience, price, pay: guest.pay });
   const res = { score, verdict: score >= 80 ? "好评" : score >= 50 ? "平" : "差评", reasons: [] };
   const eff = verdictEffects(res.verdict, guest);
+  // 扒口味：把这道菜的结果喂进推理
+  if (guest.known) probeUpdate(guest.known, dishInfo, res.verdict);
+  res.hint = probeHint(dishInfo, res.verdict);
   const tip = res.verdict === "好评" && Math.random() < eff.tipChance ? Math.max(1, Math.round(price * 0.15)) : 0;
   s.sales.push({
     guest: guest.name, regular: guest.regular, dish, score: res.score, verdict: res.verdict,
-    amount: price + tip, tip,
+    amount: price + tip, tip, hint: res.hint,
   });
   s.cash += price + tip;
   s.reputationDelta += eff.rep;
   s.prep[dish] = (s.prep[dish] || 0) - 1;
   s.tables[tableIdx] = null;
   log(s, `${guest.name} 吃毕「${dish}」${res.verdict}（${res.score}分）${tip ? `，赏${tip}文` : ""}`);
+}
+
+// ── 手动派餐：玩家给某桌客人上一道菜 ──
+export function serveDish(state, tableIdx, dishName, price) {
+  // 深拷贝 prep/log：StrictMode 下 updater 可能执行两次，必须纯函数
+  const s = {
+    ...state,
+    tables: [...state.tables],
+    cooking: state.cooking.map(c => ({ ...c })),
+    prep: { ...state.prep },
+    log: [...state.log],
+  };
+  const tb = s.tables[tableIdx];
+  if (!tb || tb.state !== "waiting") return s;
+  const r = recipeByName(s, dishName);
+  if (!r || (s.prep[dishName] || 0) <= 0) return s;
+  s.tables[tableIdx] = {
+    ...tb,
+    state: "烹饪",
+    dish: dishName,
+    prepTime: recipePrepTime(r),
+    tasteCat: tasteCategoryOf(r),
+    quality: qualityOf(r),
+  };
+  s.prep[dishName] = (s.prep[dishName] || 0) - 1;
+  s.cooking.push({ table: tableIdx, dish: dishName, remain: recipePrepTime(r) });
+  log(s, `你给${tb.guest.name}派了一道「${dishName}」。`);
+  return s;
 }
 
 // 味型大类：菜品细分味型 → 6 大类
