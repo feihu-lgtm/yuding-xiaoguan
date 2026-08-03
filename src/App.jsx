@@ -20,6 +20,7 @@ import DevelopScreen from "./ui/DevelopScreen.jsx";
 import ExtractionScreen from "./ui/ExtractionScreen.jsx";
 import TerminalScreen from "./ui/TerminalScreen.jsx";
 import { newStove, runCommand } from "./engine/terminalEngine.js";
+import { chatTargets } from "./engine/npcChat.js";
 import { initExtraction, extractionAction, applyBattleResult } from "./engine/extractionEngine.js";
 import { SKILLS, WEAPONS, ARMORS, teachPrice, trainPotency, cultivate } from "./engine/kungfuData.js";
 import { runDungeon, DUNGEONS, developDish, freestyleDish, NIGHT_AP, shopBuy } from "./engine/nightEngine.js";
@@ -363,6 +364,9 @@ export default function App() {
     const r = await runCommand(stoveRef.current, line, {
       inventory: game.inventory,
       cuisine: 2,
+      dayIdx: game.dayIdx,
+      chatTargets: () => chatTargets(game, dayState),
+      onFavor: (id, delta) => setGame(g => ({ ...g, favors: { ...g.favors, [id]: (g.favors[id] || 0) + delta } })),
       onCooked: ({ dish, inventory }) => {
         setGame(g => {
           let recipes = g.recipes, customs = g.customRecipes;
@@ -379,6 +383,9 @@ export default function App() {
       },
     });
     setTermMsgs(ms => [...ms, r.msg]);
+    if (r.chat) {
+      setTermMsgs(ms => [...ms, { text: `（${r.chat.npc} 对你的好感升至 ${r.chat.favor}）`, who: "说书人", scene: "店堂", mood: "平静" }]);
+    }
     if (r.dish?.from === "配方" && !game.recipes.includes(r.dish.name)) {
       setTermMsgs(ms => [...ms, { text: `「${r.dish.name}」记进了你的菜谱。`, who: "说书人", scene: "灶房", mood: "满意" }]);
     } else if (r.dish) {
@@ -462,7 +469,7 @@ export default function App() {
       )}
       {view === "terminal" && !battle && (
         <TerminalScreen msgs={termMsgs} onCommand={runTerm} busy={termBusy}
-          hint={game.phase === PHASE.NIGHT ? "（夜晚研发，开火扣 1 行动点）" : "（白天灶房空着，也可练练手）"} />
+          hint="对话 老猎户 ｜ 放料 X Y ｜ 技法 炖 ｜ 开火" />
       )}
       {game.phase === PHASE.NIGHT && !battle && extraction && (
         <ExtractionScreen state={extraction}

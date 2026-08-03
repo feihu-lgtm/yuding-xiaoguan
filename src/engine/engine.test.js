@@ -8,6 +8,7 @@ import { runDungeon, developDish, freestyleDish, DUNGEONS } from "./nightEngine.
 import { settleDay, checkBankrupt } from "./economy.js";
 import { genEnemy, buildFighter, battleTurn, battleLoot, DUNGEON_ENEMIES } from "./battleEngine.js";
 import { resolveEnemyAI } from "./aiEnemy.js";
+import { chatTargets, templateChat, chatFavorDelta, parseChatCommand } from "./npcChat.js";
 import { mulberry32, TASTES } from "./data.js";
 import { rollFreestyleValue, rollTaste, matchRecipe } from "./aiDish.js";
 
@@ -274,5 +275,31 @@ describe("AGI 出餐裁决（aiDish）", () => {
   it("固定配方命中判定：材料不分先后", () => {
     expect(matchRecipe(["贡措海盐", "牦牛腱子肉"], "炖")).toEqual(matchRecipe(["牦牛腱子肉", "贡措海盐"], "炖"));
     expect(matchRecipe(["牦牛腱子肉", "贡措海盐"], "炖")?.name).toBe("牦牛骨汤");
+  });
+});
+
+describe("NPC 对话接口（精简 qucuo act 对话模式）", () => {
+
+  it("对话对象池：16 位熟客全可对话，白天店堂在场优先标注", () => {
+    const day = { tables: [{ guest: { name: "才旦" } }, { guest: { name: "老孙" } }, null] };
+    const targets = chatTargets({ favors: {} }, day);
+    expect(targets).toHaveLength(16);
+    expect(targets.find(t => t.name === "才旦").where).toBe("店堂");
+    expect(targets.find(t => t.name === "老猎户").where).toBe("可登门");
+  });
+
+  it("对话命令解析：对话 X / 和X说 / 问X 都认", () => {
+    expect(parseChatCommand("对话 老猎户")?.name).toBe("老猎户");
+    expect(parseChatCommand("和老猎户说话 爱吃什么")?.name).toBe("老猎户");
+    expect(parseChatCommand("老猎户")?.name).toBe("老猎户");
+  });
+
+  it("模板回应：带 NPC 人设与口味线索，好感按态度涨", () => {
+    const npc = { ...REGULARS.find(r => r.name === "老猎户"), favor: 0 };
+    const msg = templateChat(npc, "近来可好", "店堂");
+    expect(msg.who).toBe("老猎户");
+    expect(msg.text).toContain("厚重"); // 口味线索（味型）
+    expect(chatFavorDelta(npc, "热情")).toBe(2);
+    expect(chatFavorDelta(npc, "不耐烦")).toBe(0);
   });
 });

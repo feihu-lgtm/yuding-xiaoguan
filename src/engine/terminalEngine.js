@@ -8,6 +8,7 @@
 import { INGREDIENTS, TECHNIQUES, mulberry32 } from "./data.js";
 import { matchRecipe, genFreestyleDish } from "./aiDish.js";
 import { callAI, hasApi } from "./aiClient.js";
+import { parseChatCommand, aiChat, templateChat, chatFavorDelta } from "./npcChat.js";
 
 // 灶台状态
 export function newStove() {
@@ -31,6 +32,8 @@ export function parseCommand(line) {
   }
   if (/^开火$/.test(s)) return { action: "fire" };
   if (/^打烊$/.test(s)) return { action: "close" };
+  const chat = parseChatCommand(s);
+  if (chat) return chat;
   return { action: "unknown", raw: s };
 }
 
@@ -106,6 +109,19 @@ export async function runCommand(stove, line, deps) {
   const seed = Date.now() % 997;
 
   switch (cmd.action) {
+    case "chat": {
+      const npc = deps.chatTargets?.().find(t => t.name === cmd.name);
+      if (!npc) {
+        return { stove, msg: { text: `「${cmd.name}」？店里此刻没有这么个人。`, who: "说书人", scene: "店堂", mood: "疑惑" } };
+      }
+      const where = npc.where === "店堂" ? "店堂" : "灶房";
+      const ai = await aiChat(npc, cmd.rest, where, deps.dayIdx || 0);
+      const msg = ai || templateChat(npc, cmd.rest, where);
+      // 好感微调（respondedNpcs 模式：对话即升温，反感只停涨）
+      const delta = chatFavorDelta(npc, msg.mood);
+      if (delta > 0) deps.onFavor?.(npc.id, delta);
+      return { stove, msg, chat: { npc: npc.name, favor: npc.favor + delta } };
+    }
     case "help":
       return { stove, msg: narr(await aiNarrative(stove, "help", null), null) };
     case "clear": {
