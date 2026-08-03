@@ -357,10 +357,8 @@ export default function App() {
     setNightLog(l => [...l, `采购：花 40 文，买到 ${r.items.join("、")}`]);
   };
 
-  // 主叙事终端：研发命令
-  const runTerm = async (line) => {
-    setTermMsgs(ms => [...ms, { text: line, who: "你", scene: "灶房", mood: "认真" }]);
-    setTermBusy(true);
+  // 主叙事终端：研发命令 + NPC 对话（busy 必须有 finally 兜底，否则一次报错永久卡死"不理人"）
+  const doRunTerm = async (line) => {
     const r = await runCommand(stoveRef.current, line, {
       inventory: game.inventory,
       cuisine: 2,
@@ -391,7 +389,17 @@ export default function App() {
     } else if (r.dish) {
       setTermMsgs(ms => [...ms, { text: `「${r.dish.name}」记进了你的菜谱。`, who: "说书人", scene: "灶房", mood: "惊喜" }]);
     }
-    setTermBusy(false);
+  };
+  const runTerm = async (line) => {
+    setTermMsgs(ms => [...ms, { text: line, who: "你", scene: "灶房", mood: "认真" }]);
+    setTermBusy(true);
+    try {
+      await doRunTerm(line);
+    } catch (e) {
+      setTermMsgs(ms => [...ms, { text: `说书人愣了一下（${e?.message || "出岔子了"}）。`, who: "说书人", scene: "灶房", mood: "疑惑" }]);
+    } finally {
+      setTermBusy(false); // 无论如何解锁输入框
+    }
   };
 
   // 退出战斗（回夜晚屏，不结束夜晚）
@@ -613,7 +621,7 @@ function DayScreen({ day, speed, setSpeed, onServe }) {
 
       <main className="floor">
         <div className="slotbar">
-          {slotNames[day.slotIdx]} · {daySeconds(day)}s/90s
+          {slotNames[day.slotIdx]} · {daySeconds(day)}s/360s
           <label className="speed">速度
             <input type="range" min={500} max={2500} step={100} value={speed}
               onChange={e => setSpeed(+e.target.value)} />

@@ -83,7 +83,7 @@ describe("白天引擎", () => {
     const prices = { "牦牛骨汤": 14, "烤藏香猪": 16, "烤黄羊腿": 14, "酸汤裂腹鱼": 14 };
     let s = initDay(0, slots, prep, prices);
     let guard = 0;
-    while (!s.done && guard++ < 300) {
+    while (!s.done && guard++ < 400) {
       for (let t = 0; t < s.tables.length; t++) {
         const tb = s.tables[t];
         if (tb?.state === "waiting") {
@@ -121,7 +121,7 @@ describe("白天引擎", () => {
     const prep = { "牦牛骨汤": 8, "烤藏香猪": 8 };
     let s = initDay(0, slots, prep, { "牦牛骨汤": 14, "烤藏香猪": 16 });
     let guard = 0;
-    while (!s.done && guard++ < 300) {
+    while (!s.done && guard++ < 400) {
       for (let t = 0; t < s.tables.length; t++) {
         const tb = s.tables[t];
         if (tb?.state === "waiting") {

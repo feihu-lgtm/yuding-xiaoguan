@@ -41,7 +41,7 @@ export function parseChatCommand(line) {
   let m = s.match(/^(对话|和|找|问)\s*(.+)$/);
   if (m) {
     const name = matchNpcName(m[2]);
-    if (name) return { action: "chat", name, rest: m[2].slice(name.length).replace(/^(说话|聊聊|聊两句|在吗|聊|说说)\s*/, "") };
+    if (name) return { action: "chat", name, rest: m[2].slice(name.length).trim().replace(/^(说话|聊聊|聊两句|在吗|聊|说说)\s*/, "") };
   }
   const name = matchNpcName(s);
   if (name) return { action: "chat", name, rest: "" };

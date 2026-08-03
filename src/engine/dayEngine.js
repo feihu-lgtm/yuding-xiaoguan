@@ -9,10 +9,10 @@ import { dishScore, matchScore, satisfactionFrom } from "./dishScore.js";
 import { probeUpdate, probeHint, confirmedTastes } from "./tasteProbe.js";
 
 export const STOVE_COUNT = 1; // 灶台并行出餐数（开局）
-export const TICK_SECONDS = 3; // 每 tick = 3 秒：白天 30 tick = 90 秒，与配餐时限 1:30 同节奏
-export const TICKS_PER_SLOT = 10; // 每时段 tick 数（共 3 时段 = 90 秒）
+export const TICK_SECONDS = 1; // 每 tick = 1 秒：一天 360 秒（3 时段 × 120 秒）
+export const TICKS_PER_SLOT = 120; // 每时段 120 秒（共 3 时段 = 一天 360 秒）
 
-// 白天已过总秒数（UI 显示 x s/90 s）
+// 白天已过总秒数（UI 显示 x s/360 s）
 export function daySeconds(state) {
   return Math.round((state.slotIdx * TICKS_PER_SLOT + state.tick) * TICK_SECONDS);
 }
