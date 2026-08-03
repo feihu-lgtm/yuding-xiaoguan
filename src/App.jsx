@@ -658,8 +658,8 @@ function DayScreen({ day, speed, setSpeed, onServe }) {
                       </div>
                     ) : null}
                   </div>
-                  {tb.state === "waiting" && <div className={`t-state ${tb.waitTicks * 3 > 90 ? "angry" : ""}`}>
-                    配餐倒计时 {Math.max(0, Math.ceil(90 - tb.waitTicks * 3))}s
+                  {tb.state === "waiting" && <div className={`t-state ${tb.waitTicks > 90 ? "angry" : ""}`}>
+                    配餐倒计时 {Math.max(0, 90 - tb.waitTicks)}s
                   </div>}
                 </>
               ) : (

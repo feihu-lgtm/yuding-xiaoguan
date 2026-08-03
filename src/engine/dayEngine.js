@@ -69,12 +69,15 @@ function chooseDish(guest, prep, recipesMap) {
 
 // 单次 tick（不可变更新）
 export function tick(state) {
+  // 深拷贝 prep/log：StrictMode 下 updater 可能执行两次，必须纯函数
   const s = {
     ...state,
     tables: [...state.tables],
     cooking: state.cooking.map(c => ({ ...c })),
     sales: [...state.sales],
     queue: [...state.queue],
+    prep: { ...state.prep },
+    log: [...state.log],
   };
 
   // 1) 出餐推进
@@ -173,7 +176,7 @@ function settle(s, tableIdx) {
   });
   s.cash += price + tip;
   s.reputationDelta += eff.rep;
-  s.prep[dish] = (s.prep[dish] || 0) - 1;
+  // 份数已在 serveDish 派餐时扣掉（可售→已售），此处不重复扣
   s.tables[tableIdx] = { ...tb, state: "评价", verdict: res.verdict, verdictTicks: 2 };
   log(s, `${guest.name} 吃毕「${dish}」${res.verdict}（${res.score}分）${tip ? `，赏${tip}文` : ""}`);
 }

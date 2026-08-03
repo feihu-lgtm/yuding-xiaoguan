@@ -112,7 +112,7 @@ describe("白天引擎", () => {
       }
       s = tick(s);
     }
-    expect(s.prep["牦牛骨汤"]).toBeLessThanOrEqual(0);
+    expect(s.prep["牦牛骨汤"]).toBe(0); // 派 1 扣 1，不重复扣
     expect(s.missed).toBeGreaterThan(0);
     expect(s.sales.filter(x => x.verdict === "差评").length).toBe(0);
   });
