@@ -303,3 +303,37 @@ describe("NPC 对话接口（精简 qucuo act 对话模式）", () => {
     expect(chatFavorDelta(npc, "不耐烦")).toBe(0);
   });
 });
+
+describe("翻面评价与日结明细", () => {
+  it("吃毕后桌卡进入评价态（好评/中评/差评），数 tick 后清桌", () => {
+    const slots = genDayGuests(0, 20);
+    const prep = { "牦牛骨汤": 8 };
+    let s = initDay(0, slots, prep, { "牦牛骨汤": 14 });
+    let guard = 0;
+    // 派餐第一桌并推进到结账
+    while (guard++ < 20) {
+      const tb = s.tables[0];
+      if (tb?.state === "waiting") s = serveDish(s, 0, "牦牛骨汤", 14);
+      s = tick(s);
+      if (s.tables[0]?.state === "评价") {
+        expect(["好评", "中评", "差评"]).toContain(s.tables[0].verdict);
+        expect(s.sales.length).toBe(1);
+        break;
+      }
+    }
+  });
+  it("sale 记录该客人已确认的偏好（猜出食材）", () => {
+    const slots = genDayGuests(0, 20);
+    const prep = { "牦牛骨汤": 8 };
+    let s = initDay(0, slots, prep, { "牦牛骨汤": 14 });
+    let guard = 0;
+    while (guard++ < 30) {
+      const tb = s.tables[0];
+      if (tb?.state === "waiting") s = serveDish(s, 0, "牦牛骨汤", 14);
+      s = tick(s);
+    }
+    if (s.sales.length) {
+      expect(Array.isArray(s.sales[0].confirmed)).toBe(true);
+    }
+  });
+});

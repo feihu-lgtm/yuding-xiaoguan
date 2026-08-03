@@ -31,13 +31,13 @@ export function calcSatisfaction(guest, dish, waitTicks, { outOfStock = false, s
   if (pricePenalty > 0) { score -= pricePenalty; reasons.push(`性价比-${pricePenalty}`); }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  const verdict = score >= 80 ? "好评" : score >= 50 ? "平" : "差评";
+  const verdict = score >= 80 ? "好评" : score >= 50 ? "中评" : "差评";
   return { score, verdict, reasons };
 }
 
 // 档位 → 经营产出
 export function verdictEffects(verdict, guest) {
   if (verdict === "好评") return { favor: 2, rep: 1, tipChance: 0.3, rumorSeed: true };
-  if (verdict === "平") return { favor: 0, rep: 0, tipChance: 0.05, rumorSeed: false };
+  if (verdict === "中评") return { favor: 0, rep: 0, tipChance: 0.05, rumorSeed: false };
   return { favor: -1, rep: -1, tipChance: 0, rumorSeed: true }; // 差评也产流言种子
 }

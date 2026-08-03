@@ -6,10 +6,10 @@
 import { RECIPES, recipePrepTime } from "./data.js";
 import { verdictEffects } from "./satisfaction.js";
 import { dishScore, matchScore, satisfactionFrom } from "./dishScore.js";
-import { probeUpdate, probeHint } from "./tasteProbe.js";
+import { probeUpdate, probeHint, confirmedTastes } from "./tasteProbe.js";
 
 export const STOVE_COUNT = 1; // 灶台并行出餐数（开局）
-export const TICK_SECONDS = 1.1; // 每 tick 对应游戏秒（UI 显示配餐倒计时用）
+export const TICK_SECONDS = 3; // 每 tick = 3 秒：白天 30 tick = 90 秒，与配餐时限 1:30 同节奏
 export const SERVE_LIMIT_SECONDS = 90; // 配餐时限 1:30：客人等太久没人派餐会走
 
 export function initDay(dayIdx, slots, prep, prices, { stove = STOVE_COUNT, recipesMap = null, cuisine = 2 } = {}) {
@@ -89,7 +89,14 @@ export function tick(state) {
   for (let t = 0; t < s.tables.length; t++) {
     const tb = s.tables[t];
     if (!tb) continue;
-    if (tb.state === "waiting") {
+    if (tb.state === "评价") {
+      const vt = tb.verdictTicks - 1;
+      if (vt <= 0) {
+        s.tables[t] = null;
+      } else {
+        s.tables[t] = { ...tb, verdictTicks: vt };
+      }
+    } else if (tb.state === "waiting") {
       const wt = tb.waitTicks + 1;
       if (wt * TICK_SECONDS > SERVE_LIMIT_SECONDS) {
         // 配餐时限 1:30 内没人派餐，拂袖而去（不算差评，只流失）
@@ -147,7 +154,7 @@ function settle(s, tableIdx) {
   );
   const ms = matchScore(guest, { tasteCat: tb.tasteCat, technique: r?.technique, materials: r?.materials || [], name: dish });
   const score = satisfactionFrom(ds.total, ms.total, { waitTicks: Math.round(waitTicks * TICK_SECONDS), patience: guest.patience, price, pay: guest.pay });
-  const res = { score, verdict: score >= 80 ? "好评" : score >= 50 ? "平" : "差评", reasons: [] };
+  const res = { score, verdict: score >= 80 ? "好评" : score >= 50 ? "中评" : "差评", reasons: [] };
   const eff = verdictEffects(res.verdict, guest);
   // 扒口味：把这道菜的结果喂进推理
   if (guest.known) probeUpdate(guest.known, dishInfo, res.verdict);
@@ -156,11 +163,12 @@ function settle(s, tableIdx) {
   s.sales.push({
     guest: guest.name, regular: guest.regular, dish, score: res.score, verdict: res.verdict,
     amount: price + tip, tip, hint: res.hint,
+    confirmed: guest.known ? confirmedTastes(guest.known).map(a => a.split(":")[1]) : [],
   });
   s.cash += price + tip;
   s.reputationDelta += eff.rep;
   s.prep[dish] = (s.prep[dish] || 0) - 1;
-  s.tables[tableIdx] = null;
+  s.tables[tableIdx] = { ...tb, state: "评价", verdict: res.verdict, verdictTicks: 2 };
   log(s, `${guest.name} 吃毕「${dish}」${res.verdict}（${res.score}分）${tip ? `，赏${tip}文` : ""}`);
 }
 

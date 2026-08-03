@@ -642,12 +642,16 @@ function DayScreen({ day, speed, setSpeed, onServe }) {
                       <button className="serve-btn" onClick={() => setServeTarget(i)}>🖐 派餐</button>
                     ) : tb.state === "烹饪" ? (
                       `烹饪「${tb.dish}」(t${tb.waitTicks})`
-                    ) : (
+                    ) : tb.state === "用餐" ? (
                       `用餐「${tb.dish}」`
-                    )}
+                    ) : tb.state === "评价" ? (
+                      <div className={`verdict-flip ${tb.verdict === "好评" ? "good" : tb.verdict === "差评" ? "bad" : ""}`}>
+                        {tb.verdict === "好评" ? "😋 好评" : tb.verdict === "差评" ? "😠 差评" : "😐 中评"}
+                      </div>
+                    ) : null}
                   </div>
-                  {tb.state === "waiting" && <div className={`t-state ${tb.waitTicks * 1.1 > 90 ? "angry" : ""}`}>
-                    配餐倒计时 {Math.max(0, Math.ceil(90 - tb.waitTicks * 1.1))}s
+                  {tb.state === "waiting" && <div className={`t-state ${tb.waitTicks * 3 > 90 ? "angry" : ""}`}>
+                    配餐倒计时 {Math.max(0, Math.ceil(90 - tb.waitTicks * 3))}s
                   </div>}
                 </>
               ) : (
@@ -664,7 +668,7 @@ function DayScreen({ day, speed, setSpeed, onServe }) {
         <h3>📊 结算</h3>
         <div className="stats">
           <div>好评 {day.sales.filter(s => s.verdict === "好评").length}</div>
-          <div>平 {day.sales.filter(s => s.verdict === "平").length}</div>
+          <div>中评 {day.sales.filter(s => s.verdict === "中评").length}</div>
           <div>差评 {day.sales.filter(s => s.verdict === "差评").length}</div>
           <div>声望 Δ{day.reputationDelta > 0 ? "+" : ""}{day.reputationDelta}</div>
         </div>
@@ -874,15 +878,23 @@ function SummaryScreen({ summary, day, report, onNext }) {
           <div>现银 {summary.cash} 文</div>
         </div>
         <div className="card">
-          <h3>今日客人</h3>
-          {day?.sales.map((s, i) => (
-            <div key={i} className="sale-line">
-              <span>{s.guest}</span>
-              <span className="dim">{s.dish || "空手而归"}</span>
-              <span className={s.verdict === "好评" ? "ok" : s.verdict === "差评" ? "empty" : ""}>{s.verdict}</span>
-              <span>{s.amount}文</span>
-            </div>
-          ))}
+          <h3>今日食客结算</h3>
+          <div className="dim" style={{ marginBottom: 6 }}>谁喜欢 · 谁不喜欢 · 你扒出了什么</div>
+          <div className="sale-list">
+            {day?.sales.map((s, i) => (
+              <div key={i} className={`sale-line ${s.verdict === "好评" ? "ok" : s.verdict === "差评" ? "empty" : ""}`}>
+                <span>{s.verdict === "好评" ? "😋" : s.verdict === "差评" ? "😠" : "😐"}</span>
+                <span>{s.guest}</span>
+                <span className="dim">{s.dish || "没吃上"}</span>
+                <span className="dim">{s.score}分</span>
+                <span className="dim">{s.amount}文</span>
+                {s.confirmed?.length > 0 && <span className="guess">→ 扒出：{s.confirmed.join("、")}</span>}
+              </div>
+            ))}
+          </div>
+          {day?.sales.some(s => s.confirmed?.length) ? null : (
+            <div className="dim" style={{ marginTop: 6 }}>今天一道偏好都没扒出来——明天多试几道正交的菜。</div>
+          )}
         </div>
       </div>
       {summary.bankrupt && (

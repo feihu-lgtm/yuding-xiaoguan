@@ -303,3 +303,20 @@ h3 { color: #b09858; font-size: 14px; margin: 10px 0 6px; }
 .stock-bar { border: 1px solid #3a2f1e; border-radius: 6px; padding: 8px 12px; background: #1d1924; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .stock-bar h3 { margin: 0; }
 .term-hint { color: #8a7a5a; }
+
+/* 客人翻面评价 */
+.verdict-flip {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  background: #4a4a2a; font-size: 12px; font-weight: bold; color: #e8dcc0;
+  animation: flipIn .5s ease;
+}
+.verdict-flip.good { background: #2a4a2a; color: #8fd08a; }
+.verdict-flip.bad { background: #4a2a2a; color: #e0a090; }
+@keyframes flipIn {
+  from { transform: rotateX(90deg); opacity: 0; }
+  to { transform: rotateX(0); opacity: 1; }
+}
+/* 日结食客结算 */
+.sale-list { max-height: 260px; overflow-y: auto; }
+.sale-line { display: flex; gap: 8px; font-size: 12px; align-items: baseline; padding: 2px 0; }
+.guess { color: #c8a860; font-size: 11px; margin-left: auto; }
